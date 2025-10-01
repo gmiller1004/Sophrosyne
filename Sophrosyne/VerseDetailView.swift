@@ -28,6 +28,7 @@ struct VerseDetailView: View {
     @State private var userQuestion: String = ""
     @State private var qaResponse: String = ""
     @State private var qaChain: [[String: Any]] = []
+    @State private var showSealSuccess: Bool = false
     
     // Legacy initializer for backwards compatibility
     init(verse: String, reflection: String) {
@@ -47,8 +48,13 @@ struct VerseDetailView: View {
     
     var body: some View {
         ZStack {
-            // Intensifying gradient background based on scroll
-            intensifyingBackground
+            // Immersive gradient background
+            LinearGradient(
+                colors: [.primary.opacity(0.05), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
             // Main scrollable content
             ScrollView {
@@ -99,6 +105,28 @@ struct VerseDetailView: View {
             .coordinateSpace(name: "scroll")
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                 scrollOffset = value
+            }
+            
+            // Success banner overlay
+            if showSealSuccess {
+                VStack {
+                    Spacer()
+                    
+                    HStack {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                        Text("Sealed—tomorrow's whisper awaits")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                    .padding()
+                    .background(.white.opacity(0.95))
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    .padding(.horizontal, SophrosyneTheme.Spacing.lg)
+                    .padding(.bottom, SophrosyneTheme.Spacing.xl)
+                }
+                .transition(.opacity)
             }
         }
         .contentShape(Rectangle())
@@ -233,6 +261,18 @@ struct VerseDetailView: View {
                     // Set completedAt to current time
                     completedAt = Date()
                     canSeal = false
+                    
+                    // Show success banner
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showSealSuccess = true
+                    }
+                    
+                    // Auto-hide banner after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showSealSuccess = false
+                        }
+                    }
                 }
             }
             .disabled(!canSeal)
@@ -297,21 +337,6 @@ struct VerseDetailView: View {
         .padding(.bottom, 40)
     }
     
-    /// Intensifying gradient that responds to scroll position
-    /// Following Sophrosyne rules: Immersive experience with dynamic visual feedback
-    private var intensifyingBackground: some View {
-        let intensity = min(abs(scrollOffset) / 500, 1.0)
-        
-        return LinearGradient(
-            colors: [
-                Color.sophrosynePrimary.opacity(0.1 + intensity * 0.2),
-                Color.sophrosyneAccent.opacity(0.05 + intensity * 0.15),
-                .white
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
     
     /// Context section from devotional
     private func contextSection(_ devotional: [String: Any]) -> some View {
