@@ -667,9 +667,24 @@ struct DashboardView: View {
     }
     
     // MARK: - Day Completion Functions
-    /// Check if a specific day is completed
+    /// Check if a specific day is unlocked (not locked with frosted glass)
     /// Following Sophrosyne rules: Progressive unlocking for balanced pacing
     private func isDayCompleted(journeyId: String, dayNumber: Int) -> Bool {
+        // First day is always unlocked
+        if dayNumber == 1 {
+            return true
+        }
+        
+        // Check if previous day is completed to unlock current day
+        let previousDayKey = "\(journeyId)_day_\(dayNumber - 1)"
+        let isPreviousDayCompleted = completedDays.contains(previousDayKey)
+        
+        // If previous day is completed, this day is unlocked
+        if isPreviousDayCompleted {
+            return true
+        }
+        
+        // Otherwise check if this day is explicitly completed
         let key = "\(journeyId)_day_\(dayNumber)"
         return completedDays.contains(key)
     }
