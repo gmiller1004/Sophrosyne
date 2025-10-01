@@ -23,6 +23,8 @@ struct VerseDetailView: View {
     @State private var isAskingGrok = false
     @State private var grokResponse: String?
     @State private var showGrokResponse = false
+    @State private var completedAt: Date?
+    @State private var canSeal: Bool = false
     
     // Legacy initializer for backwards compatibility
     init(verse: String, reflection: String) {
@@ -110,6 +112,9 @@ struct VerseDetailView: View {
             // Haptic feedback on appear
             let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
             impactFeedback.impactOccurred()
+            
+            // Calculate if user can seal (24 hours after completion)
+            canSeal = Date() > (completedAt?.addingTimeInterval(24*3600) ?? Date.distantPast)
         }
     }
     
@@ -168,6 +173,32 @@ struct VerseDetailView: View {
                         .padding()
                 }
             }
+            
+            // Meaning section
+            if let devotional = devotional,
+               let meaning = devotional["meaning"] as? String {
+                Section("Meaning for You") {
+                    Text(meaning)
+                        .italic()
+                        .font(.body)
+                        .padding()
+                }
+            }
+            
+            // Time-gated Reflect & Seal button
+            Button(canSeal ? "Reflect & Seal" : "Return Tomorrow") {
+                if canSeal {
+                    saveNotesToFirestore()
+                    UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                    // Set completedAt to current time
+                    completedAt = Date()
+                    canSeal = false
+                }
+            }
+            .disabled(!canSeal)
+            .buttonStyle(.borderedProminent)
+            .tint(.accentColor)
+            .padding(.top, SophrosyneTheme.Spacing.md)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -499,6 +530,80 @@ struct VerseDetailView: View {
         }
         
         return "Spiritual seeker on a journey of growth"
+    }
+    
+    // MARK: - Firestore Integration
+    
+    /// Save notes to Firestore when user seals their reflection
+    /// Following Sophrosyne rules: Balanced persistence with spiritual timing
+    private func saveNotesToFirestore() {
+        guard let currentUser = Auth.auth().currentUser,
+              let dayNumber = dayNumber else {
+            print("❌ VerseDetailView: No authenticated user or day number for saving notes")
+            return
+        }
+        
+        let db = Firestore.firestore()
+        let notesData: [String: Any] = [
+            "verse": verse,
+            "reflection": reflection,
+            "completedAt": Timestamp(),
+            "userId": currentUser.uid,
+            "dayNumber": dayNumber
+        ]
+        
+        Task {
+            do {
+                try await db.collection("users")
+                    .document(currentUser.uid)
+                    .collection("reflections")
+                    .document("day_\(dayNumber)")
+                    .setData(notesData)
+                
+                print("✅ VerseDetailView: Notes saved to Firestore for day \(dayNumber)")
+                
+                // Schedule notification for next day at 8 AM
+                await scheduleNextDayNotification()
+                
+            } catch {
+                print("❌ VerseDetailView: Error saving notes to Firestore: \(error)")
+            }
+        }
+    }
+    
+    /// Schedule notification for next day at 8 AM
+    /// Following Sophrosyne rules: Gentle spiritual pacing
+    private func scheduleNextDayNotification() async {
+        guard let dayNumber = dayNumber else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Daily Grace"
+        content.body = "Your next reflection awaits. Return when you're ready."
+        content.sound = .default
+        
+        // Schedule for next day at 8 AM
+        var dateComponents = DateComponents()
+        dateComponents.hour = 8
+        dateComponents.minute = 0
+        
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let tomorrowAt8AM = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: tomorrow) ?? Date()
+        
+        let trigger = UNCalendarNotificationTrigger(dateMatching: calendar.dateComponents([.hour, .minute], from: tomorrowAt8AM), repeats: false)
+        
+        let request = UNNotificationRequest(
+            identifier: "next_reflection_day_\(dayNumber + 1)",
+            content: content,
+            trigger: trigger
+        )
+        
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            print("✅ VerseDetailView: Next day notification scheduled for 8 AM")
+        } catch {
+            print("❌ VerseDetailView: Error scheduling notification: \(error)")
+        }
     }
     
     // MARK: - Share Functionality
