@@ -204,9 +204,36 @@ struct DashboardView: View {
     
     private var journeysSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Journey Day Cards with flexible length (7-28 days)
-            List {
-                Section {
+            // Section header
+            HStack {
+                Text("Your Journey")
+                    .font(.sophrosyneTitle3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.sophrosyneTextPrimary)
+                Spacer()
+                if let journey = userJourneys.first,
+                   let path = journey.path["path"] as? [String: Any] {
+                    // New format: direct days array
+                    if let days = path["days"] as? [[String: Any]] {
+                        Text("\(days.count) Days")
+                            .font(.sophrosyneCaption)
+                            .foregroundStyle(Color.sophrosyneTextSecondary)
+                    }
+                    // Old format: weeks with days
+                    else if let weeks = path["weeks"] as? [[String: Any]] {
+                        let totalDays = weeks.reduce(0) { count, week in
+                            count + ((week["days"] as? [[String: Any]])?.count ?? 0)
+                        }
+                        Text("\(totalDays) Days")
+                            .font(.sophrosyneCaption)
+                            .foregroundStyle(Color.sophrosyneTextSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, SophrosyneTheme.Spacing.md)
+            
+            // Journey Day Cards with LazyVStack (fixes List height collapse)
+            LazyVStack(spacing: SophrosyneTheme.Spacing.md) {
                     ForEach(userJourneys, id: \.id) { journey in
                         let _ = print("🔍 Processing journey: \(journey.id)")
                         let _ = print("🔍 Journey path keys: \(journey.path.keys)")
@@ -225,8 +252,6 @@ struct DashboardView: View {
                                         markDayComplete(journeyId: journey.id, dayNumber: index + 1)
                                     }
                                 )
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
                             }
                         }
                         // Fallback: Support old week-based structure
@@ -250,8 +275,6 @@ struct DashboardView: View {
                                                 markDayComplete(journeyId: journey.id, dayNumber: absoluteDayNumber)
                                             }
                                         )
-                                        .listRowSeparator(.hidden)
-                                        .listRowBackground(Color.clear)
                                     }
                                 } else {
                                     let _ = print("  ❌ No days found in week \(weekIndex + 1)")
@@ -262,37 +285,6 @@ struct DashboardView: View {
                             let _ = print("❌ Path structure: \(journey.path)")
                         }
                     }
-                } header: {
-                    HStack {
-                        Text("Your Journey")
-                            .font(.sophrosyneTitle3)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.sophrosyneTextPrimary)
-                        Spacer()
-                        if let journey = userJourneys.first,
-                           let path = journey.path["path"] as? [String: Any] {
-                            // New format: direct days array
-                            if let days = path["days"] as? [[String: Any]] {
-                                Text("\(days.count) Days")
-                                    .font(.sophrosyneCaption)
-                                    .foregroundStyle(Color.sophrosyneTextSecondary)
-                            }
-                            // Old format: weeks with days
-                            else if let weeks = path["weeks"] as? [[String: Any]] {
-                                let totalDays = weeks.reduce(0) { count, week in
-                                    count + ((week["days"] as? [[String: Any]])?.count ?? 0)
-                                }
-                                Text("\(totalDays) Days")
-                                    .font(.sophrosyneCaption)
-                                    .foregroundStyle(Color.sophrosyneTextSecondary)
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(PlainListStyle())
-            .refreshable {
-                await refreshJourneys()
             }
             
             // Daily Notifications Toggle
