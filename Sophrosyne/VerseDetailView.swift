@@ -80,12 +80,23 @@ struct VerseDetailView: View {
                         )
                     }
                 )
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 20)
+                        .onEnded { value in
+                            if value.translation.height > 100 && value.velocity.height > 0 {
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                    dismiss()
+                                }
+                            }
+                        }
+                )
             }
             .coordinateSpace(name: "scroll")
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                 scrollOffset = value
             }
         }
+        .contentShape(Rectangle())
         .ignoresSafeArea()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
