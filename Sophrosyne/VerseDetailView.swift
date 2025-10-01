@@ -25,6 +25,9 @@ struct VerseDetailView: View {
     @State private var showGrokResponse = false
     @State private var completedAt: Date?
     @State private var canSeal: Bool = false
+    @State private var userQuestion: String = ""
+    @State private var qaResponse: String = ""
+    @State private var qaChain: [[String: Any]] = []
     
     // Legacy initializer for backwards compatibility
     init(verse: String, reflection: String) {
@@ -115,6 +118,11 @@ struct VerseDetailView: View {
             
             // Calculate if user can seal (24 hours after completion)
             canSeal = Date() > (completedAt?.addingTimeInterval(24*3600) ?? Date.distantPast)
+            
+            // Load Q&A chain from Firestore
+            Task {
+                await loadQAChain()
+            }
         }
     }
     
@@ -182,6 +190,38 @@ struct VerseDetailView: View {
                         .italic()
                         .font(.body)
                         .padding()
+                }
+            }
+            
+            // Q&A Reflection section
+            if let devotional = devotional,
+               let qaPrompt = devotional["qaPrompt"] as? String {
+                Section("Q&A Reflection") {
+                    VStack(spacing: SophrosyneTheme.Spacing.md) {
+                        TextField("How does this verse speak to you?", text: $userQuestion)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        Button("Ask Grok") {
+                            Task {
+                                do {
+                                    qaResponse = try await GrokService.askReflection(priorQA: qaChain, question: userQuestion)
+                                } catch {
+                                    qaResponse = "Unable to get response at this time."
+                                }
+                            }
+                        }
+                        .disabled(userQuestion.isEmpty)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.accentColor)
+                        
+                        if !qaResponse.isEmpty {
+                            Text(qaResponse)
+                                .font(.body)
+                                .padding(.top)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding()
                 }
             }
             
@@ -530,6 +570,39 @@ struct VerseDetailView: View {
         }
         
         return "Spiritual seeker on a journey of growth"
+    }
+    
+    // MARK: - Q&A Chain Management
+    
+    /// Load Q&A chain from Firestore for contextual responses
+    /// Following Sophrosyne rules: Balanced spiritual continuity
+    private func loadQAChain() async {
+        guard let currentUser = Auth.auth().currentUser,
+              let dayNumber = dayNumber else {
+            print("❌ VerseDetailView: No authenticated user or day number for Q&A chain")
+            return
+        }
+        
+        let db = Firestore.firestore()
+        
+        do {
+            let snapshot = try await db.collection("users")
+                .document(currentUser.uid)
+                .collection("days")
+                .document("day_\(dayNumber)")
+                .collection("qa")
+                .order(by: "timestamp", descending: false)
+                .getDocuments()
+            
+            qaChain = snapshot.documents.compactMap { document in
+                document.data()
+            }
+            
+            print("✅ VerseDetailView: Loaded \(qaChain.count) Q&A interactions")
+            
+        } catch {
+            print("❌ VerseDetailView: Error loading Q&A chain: \(error)")
+        }
     }
     
     // MARK: - Firestore Integration

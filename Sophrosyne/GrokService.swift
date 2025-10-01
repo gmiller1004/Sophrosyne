@@ -405,6 +405,106 @@ class GrokService {
             }
         }
     }
+    
+    // MARK: - Q&A Reflection
+    
+    /// Ask Grok for personalized reflection based on Q&A chain
+    /// Following Sophrosyne rules: Contextual, personalized spiritual guidance
+    /// - Parameters:
+    ///   - priorQA: Previous Q&A interactions from Firestore
+    ///   - question: User's current reflection question
+    /// - Returns: Personalized spiritual response from Grok
+    static func askReflection(priorQA: [[String: Any]], question: String) async throws -> String {
+        print("🔄 GrokService: Processing Q&A reflection request")
+        
+        // Build context from prior Q&A chain
+        var contextString = "Previous spiritual reflections:\n"
+        for (index, qa) in priorQA.enumerated() {
+            if let q = qa["question"] as? String,
+               let a = qa["answer"] as? String {
+                contextString += "Q\(index + 1): \(q)\nA\(index + 1): \(a)\n\n"
+            }
+        }
+        
+        // Construct prompt for Grok
+        let prompt = """
+        You are a wise spiritual mentor helping someone deepen their faith through biblical reflection.
+        
+        \(contextString)
+        
+        Current question: \(question)
+        
+        Provide a thoughtful, encouraging response that:
+        1. Builds on their previous reflections
+        2. Offers biblical wisdom and insight
+        3. Encourages deeper spiritual growth
+        4. Is personal and supportive
+        
+        Keep response under 200 words and focus on spiritual encouragement.
+        """
+        
+        // Prepare request body
+        let requestBody: [String: Any] = [
+            "model": grokModel,
+            "messages": [
+                [
+                    "role": "user",
+                    "content": prompt
+                ]
+            ],
+            "response_format": [
+                "type": "json_object"
+            ]
+        ]
+        
+        // Prepare headers
+        let headers: HTTPHeaders = [
+            "Authorization": "Bearer \(Config.grokAPIKey)",
+            "Content-Type": "application/json"
+        ]
+        
+        // Make the API request
+        return try await withCheckedThrowingContinuation { continuation in
+            AF.request(
+                apiURL,
+                method: .post,
+                parameters: requestBody,
+                encoding: JSONEncoding.default,
+                headers: headers
+            )
+            .validate()
+            .responseData { response in
+                switch response.result {
+                case .success(let data):
+                    do {
+                        // Parse response
+                        guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                              let choices = jsonResponse["choices"] as? [[String: Any]],
+                              !choices.isEmpty,
+                              let firstChoice = choices.first,
+                              let message = firstChoice["message"] as? [String: Any],
+                              let content = message["content"] as? String,
+                              !content.isEmpty else {
+                            print("❌ GrokService: Invalid Q&A response structure")
+                            continuation.resume(throwing: GrokServiceError.invalidResponse)
+                            return
+                        }
+                        
+                        print("✅ GrokService: Q&A response received")
+                        continuation.resume(returning: content)
+                        
+                    } catch {
+                        print("❌ GrokService: Error parsing Q&A response: \(error)")
+                        continuation.resume(throwing: GrokServiceError.jsonParsingFailed)
+                    }
+                    
+                case .failure(let error):
+                    print("❌ GrokService: Network error during Q&A: \(error)")
+                    continuation.resume(throwing: GrokServiceError.networkError(error))
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Error Handling
