@@ -916,6 +916,12 @@ struct DayCard: View {
         .padding(SophrosyneTheme.Spacing.md)
         .background(.white)
         .cornerRadius(SophrosyneTheme.CornerRadius.md)
+        .onTapGesture {
+            // Only allow tap if day is unlocked
+            if isCompleted {
+                showVerseDetail()
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: SophrosyneTheme.CornerRadius.md)
                 .stroke(isCompleted ? Color.green.opacity(0.3) : Color.secondary.opacity(0.3), lineWidth: 2)
@@ -962,6 +968,29 @@ struct DayCard: View {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         }
+    }
+    
+    // MARK: - Verse Detail Navigation
+    
+    /// Show verse detail view for this day
+    /// Following Sophrosyne rules: Immersive spiritual learning experience
+    private func showVerseDetail() {
+        // Extract verse and reflection from day data
+        let verse = day["verse"] as? String ?? "No verse available"
+        let reflection = day["reflection"] as? String ?? "No reflection available"
+        
+        // Post notification to show verse detail view
+        NotificationCenter.default.post(
+            name: NSNotification.Name("ShowVerseDetail"),
+            object: nil,
+            userInfo: [
+                "verse": verse,
+                "reflection": reflection
+            ]
+        )
+        
+        // Haptic feedback for tap
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }
 
