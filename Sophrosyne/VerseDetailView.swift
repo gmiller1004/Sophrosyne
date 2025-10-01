@@ -145,20 +145,31 @@ struct VerseDetailView: View {
     }
     
     private var verseSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Today's Verse")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-            
+        VStack(spacing: SophrosyneTheme.Spacing.lg) {
+            // Enhanced verse display
             Text(verse)
                 .font(.custom("Georgia", size: 24))
                 .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .lineSpacing(8)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
+                .padding()
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.accentColor, lineWidth: 1)
+                )
+            
+            // Context section
+            if let devotional = devotional,
+               let context = devotional["context"] as? String {
+                Section("Context") {
+                    Text(context)
+                        .font(.body)
+                        .padding()
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .padding()
         .background(.white.opacity(0.9))
         .cornerRadius(16)
